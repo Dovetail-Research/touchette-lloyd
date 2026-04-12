@@ -180,7 +180,7 @@ lemma mutualInfo_eq_entropy_sub_condEntropy {S T : Type*}
 /-! ### Marginalization lemmas -/
 
 /-- Marginalization: `(ν.map fst).real {s} = ∑ t, ν.real {(s,t)}`. -/
-private lemma marginalize_fst {S T : Type*}
+lemma marginalize_fst {S T : Type*}
     [MeasurableSpace S] [MeasurableSingletonClass S] [Fintype S]
     [MeasurableSpace T] [MeasurableSingletonClass T] [Fintype T]
     (ν : Measure (S × T)) [IsFiniteMeasure ν] (s : S) :
@@ -199,8 +199,25 @@ private lemma marginalize_fst {S T : Type*}
     (fun i _ j _ hij => Set.disjoint_singleton.mpr (fun h => hij (Prod.mk.inj h).2))
     (fun t _ => measurableSet_singleton _)]
 
+/-- Marginalization (ℝ≥0∞): `(ν.map snd) {t} = ∑ s, ν {(s,t)}`. -/
+lemma marginalize_snd_ennreal {S T : Type*}
+    [MeasurableSpace S] [MeasurableSingletonClass S] [Fintype S]
+    [MeasurableSpace T] [MeasurableSingletonClass T] [Fintype T]
+    (ν : Measure (S × T)) (t : T) :
+    (ν.map Prod.snd) {t} = ∑ s, ν {(s, t)} := by
+  rw [Measure.map_apply measurable_snd (measurableSet_singleton t)]
+  have h_set : (Prod.snd ⁻¹' {t} : Set (S × T)) =
+      ⋃ s ∈ (Finset.univ : Finset S), ({(s, t)} : Set (S × T)) := by
+    ext ⟨a, b⟩
+    simp only [Set.mem_preimage, Set.mem_singleton_iff, Finset.mem_univ, Set.iUnion_true,
+      Set.mem_iUnion, Prod.mk.injEq]
+    exact ⟨fun h => ⟨a, rfl, h⟩, fun ⟨_, _, h⟩ => h⟩
+  rw [h_set, measure_biUnion_finset
+    (fun i _ j _ hij => Set.disjoint_singleton.mpr (fun h => hij (Prod.mk.inj h).1))
+    (fun s _ => measurableSet_singleton _)]
+
 /-- Marginalization: `(ν.map snd).real {t} = ∑ s, ν.real {(s,t)}`. -/
-private lemma marginalize_snd {S T : Type*}
+lemma marginalize_snd {S T : Type*}
     [MeasurableSpace S] [MeasurableSingletonClass S] [Fintype S]
     [MeasurableSpace T] [MeasurableSingletonClass T] [Fintype T]
     (ν : Measure (S × T)) [IsFiniteMeasure ν] (t : T) :
@@ -347,6 +364,119 @@ lemma mutualInfo_nonneg {S T : Type*}
     Measure.map_map measurable_snd hXY
   rw [← hfst, ← hsnd]
   linarith [measureEntropy_subadditive ν]
+
+/-- When the marginal `(ν.map snd).real {t} = 0`, the joint `ν.real {(s,t)} = 0`. -/
+private lemma joint_zero_of_marginal_snd_zero {S T : Type*}
+    [MeasurableSpace S] [MeasurableSingletonClass S] [Fintype S]
+    [MeasurableSpace T] [MeasurableSingletonClass T] [Fintype T]
+    (ν : Measure (S × T)) [IsFiniteMeasure ν]
+    {t : T} (ht : (ν.map Prod.snd).real {t} = 0) (s : S) :
+    ν.real {(s, t)} = 0 := by
+  have hmarg := marginalize_snd ν t
+  rw [ht] at hmarg
+  have h_le : ν.real {(s, t)} ≤ ∑ s' : S, ν.real {(s', t)} :=
+    Finset.single_le_sum (f := fun s' => ν.real {(s', t)})
+      (fun _ _ => measureReal_nonneg) (Finset.mem_univ s)
+  linarith [measureReal_nonneg (μ := ν) (s := {(s, t)})]
+
+/-! ### Chain rule for measure entropy (decomposition along second component)
+
+    `Hm[ν] = Hm[ν.map snd] + ∑_t w(t) * ∑_s negMulLog(ν.real{(s,t)} / w(t))`
+
+    This is the measure-level chain rule `H[X,Y] = H[Y] + H[X|Y]`, where
+    the conditional entropy `H[X|Y]` is written explicitly as a weighted
+    sum of per-value entropies. -/
+
+/-- **Measure entropy chain rule** (decomposing along the second component):
+    `Hm[ν] = Hm[ν.map snd] + ∑ t, w(t) * ∑ s, negMulLog(ν.real{(s,t)} / w(t))`. -/
+lemma measureEntropy_chain_snd {S T : Type*}
+    [MeasurableSpace S] [MeasurableSingletonClass S] [Fintype S]
+    [MeasurableSpace T] [MeasurableSingletonClass T] [Fintype T]
+    (ν : Measure (S × T)) [IsProbabilityMeasure ν] :
+    Hm[ν] = Hm[ν.map Prod.snd] +
+      ∑ t, (ν.map Prod.snd).real {t} *
+        ∑ s, negMulLog (ν.real {(s, t)} / (ν.map Prod.snd).real {t}) := by
+  set p := fun st : S × T => ν.real {st}
+  set w := fun t : T => (ν.map Prod.snd).real {t}
+  set c := fun s : S => fun t : T => p (s, t) / w t
+  have hw_nn : ∀ t, 0 ≤ w t := fun _ => measureReal_nonneg
+  have hw_eq : ∀ t, w t = ∑ s, p (s, t) := fun t => marginalize_snd ν t
+  have hpc : ∀ s t, w t * c s t = p (s, t) := by
+    intro s t; simp only [c]
+    by_cases ht : w t = 0
+    · rw [ht, zero_mul]; exact (joint_zero_of_marginal_snd_zero ν ht s).symm
+    · exact mul_div_cancel₀ (p (s, t)) ht
+  haveI : IsProbabilityMeasure (ν.map Prod.snd) :=
+    Measure.isProbabilityMeasure_map measurable_snd.aemeasurable
+  -- Chain rule: negMulLog(p(s,t)) = c(s,t) * negMulLog(w(t)) + w(t) * negMulLog(c(s,t))
+  have hchain : ∀ s t,
+      negMulLog (p (s, t)) = c s t * negMulLog (w t) + w t * negMulLog (c s t) := by
+    intro s t; rw [← hpc s t]; exact negMulLog_mul (w t) (c s t)
+  -- Expand the LHS and apply the chain rule decomposition
+  show ∑ st : S × T, negMulLog (p st) =
+    ∑ t, negMulLog (w t) + ∑ t, w t * ∑ s, negMulLog (c s t)
+  rw [Fintype.sum_prod_type, Finset.sum_comm]
+  simp_rw [hchain, Finset.sum_add_distrib]
+  congr 1
+  · -- First sum: ∑_t [∑_s c(s,t)] * negMulLog(w(t)) = ∑_t negMulLog(w(t))
+    congr 1; ext t
+    rw [← Finset.sum_mul]
+    by_cases ht : w t = 0
+    · have h0 : negMulLog (w t) = 0 := by rw [ht]; exact negMulLog_zero
+      rw [h0, mul_zero]
+    · have hc_sum : ∑ s : S, c s t = 1 := by
+        show ∑ s : S, p (s, t) / w t = 1
+        rw [← Finset.sum_div, ← hw_eq t, div_self ht]
+      rw [hc_sum, one_mul]
+  · -- Second sum: extract w(t) from inner sum
+    congr 1; ext t; exact (Finset.mul_sum ..).symm
+
+/-! ### Measure construction from mass functions -/
+
+/-- Construct a measure on a finite type from a mass function `f : S → ℝ≥0∞`.
+
+    The resulting measure satisfies `(measureOfMass f) {s} = f s`. -/
+def measureOfMass {S : Type*} [MeasurableSpace S] [Fintype S]
+    (f : S → ℝ≥0∞) : Measure S :=
+  Finset.sum Finset.univ (fun s => f s • Measure.dirac s)
+
+/-- Singleton evaluation of `measureOfMass`. -/
+lemma measureOfMass_singleton {S : Type*} [MeasurableSpace S] [MeasurableSingletonClass S]
+    [Fintype S] (f : S → ℝ≥0∞) (s : S) :
+    measureOfMass f {s} = f s := by
+  simp only [measureOfMass, Measure.finset_sum_apply, Measure.smul_apply, smul_eq_mul]
+  rw [Finset.sum_eq_single s]
+  · rw [Measure.dirac_apply_of_mem (Set.mem_singleton s), mul_one]
+  · intro b _ hbs
+    rw [Measure.dirac_apply' b (measurableSet_singleton s),
+      Set.indicator_of_notMem (fun h => hbs (Set.mem_singleton_iff.mp h)), mul_zero]
+  · exact fun h => absurd (Finset.mem_univ s) h
+
+/-- `measureOfMass f` is a probability measure when the masses sum to 1. -/
+lemma measureOfMass_isProbabilityMeasure {S : Type*} [MeasurableSpace S]
+    [MeasurableSingletonClass S] [Fintype S]
+    (f : S → ℝ≥0∞) (hf : ∑ s, f s = 1) :
+    IsProbabilityMeasure (measureOfMass f) := by
+  constructor
+  have h_univ : (Set.univ : Set S) = ⋃ s ∈ Finset.univ, {s} := by ext; simp
+  rw [h_univ, measure_biUnion_finset
+    (fun x _ y _ hxy => Set.disjoint_singleton.mpr hxy)
+    (fun s _ => measurableSet_singleton s)]
+  simp [measureOfMass_singleton, hf]
+
+/-- `measureReal` of `measureOfMass` on singletons. -/
+lemma measureOfMass_real_singleton {S : Type*} [MeasurableSpace S]
+    [MeasurableSingletonClass S] [Fintype S]
+    (f : S → ℝ≥0∞) (s : S) :
+    (measureOfMass f).real {s} = (f s).toReal := by
+  simp [Measure.real, measureOfMass_singleton]
+
+/-- Entropy of `measureOfMass f` equals `∑ s, negMulLog (f s).toReal`. -/
+lemma measureEntropy_measureOfMass {S : Type*} [MeasurableSpace S]
+    [MeasurableSingletonClass S] [Fintype S]
+    (f : S → ℝ≥0∞) :
+    Hm[measureOfMass f] = ∑ s, negMulLog (f s).toReal := by
+  simp only [measureEntropy, measureOfMass_real_singleton]
 
 end TouchetteLloyd
 

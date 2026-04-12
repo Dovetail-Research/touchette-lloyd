@@ -51,8 +51,8 @@ open scoped BigOperators ENNReal
 namespace TouchetteLloyd
 
 variable {Ω : Type*} [MeasurableSpace Ω]
-variable {S : Type*} [MeasurableSpace S] [MeasurableSingletonClass S] [Fintype S]
-variable {Act : Type*} [MeasurableSpace Act] [MeasurableSingletonClass Act] [Fintype Act]
+variable {S : Type} [MeasurableSpace S] [MeasurableSingletonClass S] [Fintype S]
+variable {Act : Type} [MeasurableSpace Act] [MeasurableSingletonClass Act] [Fintype Act]
 
 /-! ### Control system definitions -/
 
@@ -170,7 +170,120 @@ lemma condEntropy_diff_eq_weighted_sum
       (∀ a, w a > 0 →
         ∃ (Ω' : Type) (_ : MeasurableSpace Ω') (sys' : ControlSystem Ω' S Act),
           sys'.IsBlind ∧ entropyReduction sys' = r a) := by
-  sorry
+  -- Joint distributions on S × Act
+  set νXA := sys.μ.map (fun ω => (sys.X ω, sys.A ω)) with νXA_def
+  set νYA := sys.μ.map (fun ω => (sys.Y ω, sys.A ω)) with νYA_def
+  -- Probability measure instances for the joints
+  haveI hpXA : IsProbabilityMeasure νXA :=
+    Measure.isProbabilityMeasure_map (sys.hX.prodMk sys.hA).aemeasurable
+  haveI hpYA : IsProbabilityMeasure νYA :=
+    Measure.isProbabilityMeasure_map (sys.hY.prodMk sys.hA).aemeasurable
+  haveI hpA : IsProbabilityMeasure (sys.μ.map sys.A) :=
+    Measure.isProbabilityMeasure_map sys.hA.aemeasurable
+  -- Both joints have the same action marginal: νXA.map snd = μ.map A = νYA.map snd
+  have hXA_snd : νXA.map Prod.snd = sys.μ.map sys.A :=
+    Measure.map_map measurable_snd (sys.hX.prodMk sys.hA)
+  have hYA_snd : νYA.map Prod.snd = sys.μ.map sys.A :=
+    Measure.map_map measurable_snd (sys.hY.prodMk sys.hA)
+  -- Apply chain rule (decomposing along Act) to both joints
+  have hXA_chain := measureEntropy_chain_snd νXA
+  have hYA_chain := measureEntropy_chain_snd νYA
+  rw [hXA_snd] at hXA_chain
+  rw [hYA_snd] at hYA_chain
+  -- Define witnesses
+  set w : Act → ℝ := fun a => (sys.μ.map sys.A).real {a}
+  set r : Act → ℝ := fun a =>
+    (∑ s, negMulLog (νXA.real {(s, a)} / w a)) -
+    (∑ s, negMulLog (νYA.real {(s, a)} / w a))
+  refine ⟨w, r, fun a => measureReal_nonneg, ?_, ?_, ?_⟩
+  -- (1) Weights sum to 1
+  · exact sum_measureReal_singleton _
+  -- (2) Algebraic identity: H[X|A] - H[Y|A] = ∑ a, w a * r a
+  · -- Unfold condEntropy: H[X|A] - H[Y|A] = Hm[νXA] - Hm[νYA]
+    have hcond : H[sys.X | sys.A ; sys.μ] - H[sys.Y | sys.A ; sys.μ] =
+        Hm[νXA] - Hm[νYA] := by
+      simp only [condEntropy, entropy, νXA_def, νYA_def]; ring
+    rw [hcond]
+    -- Expand RHS: ∑ a, w a * r a = CX - CY where CX, CY are from chain rule
+    have hRHS : ∑ a : Act, w a * r a =
+        (∑ a, w a * ∑ s, negMulLog (νXA.real {(s, a)} / w a)) -
+        (∑ a, w a * ∑ s, negMulLog (νYA.real {(s, a)} / w a)) := by
+      simp_rw [r, mul_sub, ← Finset.sum_sub_distrib]
+    rw [hRHS]
+    -- Both sides equal CX - CY by the chain rule
+    linarith [hXA_chain, hYA_chain]
+  -- (3) For each a with w a > 0, construct a blind system with entropyReduction = r a
+  · intro a ha
+    -- Step 1: Obtain ℝ≥0∞ non-vanishing of action probability
+    have ha_ennreal : (sys.μ.map sys.A) {a} ≠ 0 := by
+      intro h
+      simp [w, Measure.real, h] at ha
+    have ha_ne_top : (sys.μ.map sys.A) {a} ≠ ⊤ := measure_ne_top _ _
+    -- Step 2: Define conditional mass functions (in ℝ≥0∞)
+    set wA := (sys.μ.map sys.A) {a}
+    set fX : S → ℝ≥0∞ := fun s => νXA {(s, a)} / wA
+    set fY : S → ℝ≥0∞ := fun s => νYA {(s, a)} / wA
+    -- Step 3: Show conditional mass functions sum to 1
+    have hfX_sum : ∑ s : S, fX s = 1 := by
+      simp only [fX, div_eq_mul_inv]
+      rw [← Finset.sum_mul, ← marginalize_snd_ennreal νXA a, hXA_snd,
+        ENNReal.mul_inv_cancel ha_ennreal ha_ne_top]
+    have hfY_sum : ∑ s : S, fY s = 1 := by
+      simp only [fY, div_eq_mul_inv]
+      rw [← Finset.sum_mul, ← marginalize_snd_ennreal νYA a, hYA_snd,
+        ENNReal.mul_inv_cancel ha_ennreal ha_ne_top]
+    -- Step 4: Build probability measures on S from conditional distributions
+    set μ_X := measureOfMass fX
+    set μ_Y := measureOfMass fY
+    haveI : IsProbabilityMeasure μ_X := measureOfMass_isProbabilityMeasure fX hfX_sum
+    haveI : IsProbabilityMeasure μ_Y := measureOfMass_isProbabilityMeasure fY hfY_sum
+    -- Step 5: Build the control system on S × S
+    set μ' := μ_X.prod μ_Y
+    haveI : IsProbabilityMeasure μ' := inferInstance
+    set sys' : ControlSystem (S × S) S Act :=
+      { μ := μ'
+        prob := inferInstance
+        X := Prod.fst
+        A := fun _ => a
+        Y := Prod.snd
+        hX := measurable_fst
+        hA := measurable_const
+        hY := measurable_snd }
+    refine ⟨S × S, inferInstance, sys', ?_, ?_⟩
+    -- Step 6: Prove blindness (constant action is independent of everything)
+    · exact ProbabilityTheory.indepFun_const_right Prod.fst a
+    -- Step 7: Prove entropy reduction matches r a
+    · -- entropyReduction = H[fst ; μ'] - H[snd ; μ']
+      show Hm[μ'.map Prod.fst] - Hm[μ'.map Prod.snd] = r a
+      -- Compute marginal entropies via measureOfMass
+      -- First, show that the marginals of μ' = μ_X.prod μ_Y have the right entropy
+      -- (μ_X.prod μ_Y).map fst has singleton values μ_X{s}
+      -- Helper: singleton product set decomposition
+      have hsing : ∀ (s t : S), ({(s, t)} : Set (S × S)) = {s} ×ˢ {t} := by
+        intro s t; ext ⟨a, b⟩; simp
+      -- Marginal of product measure on fst equals μ_X
+      have hfst_real : ∀ s, (μ'.map Prod.fst).real {s} = μ_X.real {s} := by
+        intro s; rw [marginalize_fst μ' s]
+        simp only [Measure.real, μ', hsing, Measure.prod_prod, ENNReal.toReal_mul]
+        rw [← Finset.mul_sum,
+          show ∑ i : S, (μ_Y {i}).toReal = 1 from sum_measureReal_singleton μ_Y, mul_one]
+      -- Marginal of product measure on snd equals μ_Y
+      have hsnd_real : ∀ s, (μ'.map Prod.snd).real {s} = μ_Y.real {s} := by
+        intro s; rw [marginalize_snd μ' s]
+        simp only [Measure.real, μ', hsing, Measure.prod_prod, ENNReal.toReal_mul]
+        rw [← Finset.sum_mul,
+          show ∑ i : S, (μ_X {i}).toReal = 1 from sum_measureReal_singleton μ_X, one_mul]
+      -- Connect measureOfMass to the conditional probability
+      have hfX_real : ∀ s, (measureOfMass fX).real {s} = νXA.real {(s, a)} / w a := by
+        intro s; rw [measureOfMass_real_singleton, ENNReal.toReal_div]; rfl
+      have hfY_real : ∀ s, (measureOfMass fY).real {s} = νYA.real {(s, a)} / w a := by
+        intro s; rw [measureOfMass_real_singleton, ENNReal.toReal_div]; rfl
+      -- Assemble the entropy equalities
+      have hfst_entropy : Hm[μ'.map Prod.fst] = ∑ s, negMulLog (νXA.real {(s, a)} / w a) := by
+        simp only [measureEntropy, hfst_real, show μ_X = measureOfMass fX from rfl, hfX_real]
+      have hsnd_entropy : Hm[μ'.map Prod.snd] = ∑ s, negMulLog (νYA.real {(s, a)} / w a) := by
+        simp only [measureEntropy, hsnd_real, show μ_Y = measureOfMass fY from rfl, hfY_real]
+      rw [hfst_entropy, hsnd_entropy]
 
 /-- **Sub-lemma 2b: Weighted average bound.**
 
