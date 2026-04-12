@@ -145,16 +145,84 @@ lemma entropyReduction_decomp (sys : ControlSystem Ω S Act) :
     `H[X|A] - H[Y|A] ≤ ΔH_blind^max`
 
 For each action value `a`, the conditional distribution `P(·|A=a)` with
-fixed action `a` constitutes a blind policy. Averaging over `a` gives
-the bound. -/
+fixed action `a` constitutes a blind policy. Its entropy reduction
+`H[X|A=a] - H[Y|A=a]` is therefore in `blindReductions`. Since
+`H[X|A] - H[Y|A] = Σ_a P(A=a) · (H[X|A=a] - H[Y|A=a])` is a convex
+combination of values each ≤ `sSup(blindReductions)`, the bound follows.
 
+We decompose this into three sub-lemmas. -/
+
+/-- **Sub-lemma 2a: Conditional entropy representation.**
+
+    `H[X|A] - H[Y|A]` can be expressed as a weighted average of per-action
+    entropy reductions, with weights `P(A = a)` summing to 1.
+
+    `H[X|A] - H[Y|A] = Σ_a P(A=a) · (H[X|A=a] - H[Y|A=a])`
+
+    This follows from the standard representation of conditional entropy
+    as `H[X|A] = Σ_a P(A=a) · H[X|A=a]`. -/
+lemma condEntropy_diff_eq_weighted_sum
+    (sys : ControlSystem Ω S Act) :
+    ∃ (w : Act → ℝ) (r : Act → ℝ),
+      (∀ a, 0 ≤ w a) ∧
+      (∑ a : Act, w a = 1) ∧
+      (H[sys.X | sys.A ; sys.μ] - H[sys.Y | sys.A ; sys.μ] = ∑ a, w a * r a) ∧
+      (∀ a, w a > 0 →
+        ∃ (Ω' : Type) (_ : MeasurableSpace Ω') (sys' : ControlSystem Ω' S Act),
+          sys'.IsBlind ∧ entropyReduction sys' = r a) := by
+  sorry
+
+/-- **Sub-lemma 2b: Weighted average bound.**
+
+    If `f = Σ_i w_i r_i` where `w_i ≥ 0`, `Σ w_i = 1`, and every `r_i`
+    with `w_i > 0` is `≤ C`, then `f ≤ C`.
+
+    This is a standard property of convex combinations. -/
+lemma weighted_sum_le_sup {ι : Type*} [Fintype ι]
+    (w r : ι → ℝ) (C : ℝ)
+    (hw_nonneg : ∀ i, 0 ≤ w i)
+    (hw_sum : ∑ i, w i = 1)
+    (hr_bound : ∀ i, w i > 0 → r i ≤ C) :
+    ∑ i, w i * r i ≤ C := by
+  calc ∑ i, w i * r i
+      ≤ ∑ i, w i * C := by
+        apply Finset.sum_le_sum
+        intro i _
+        by_cases hi : w i > 0
+        · exact mul_le_mul_of_nonneg_left (hr_bound i hi) (le_of_lt hi)
+        · push_neg at hi
+          have : w i = 0 := le_antisymm hi (hw_nonneg i)
+          simp [this]
+    _ = C := by rw [← Finset.sum_mul, hw_sum, one_mul]
+
+/-- **Sub-lemma 2c: Blind systems contribute to blindReductions.**
+
+    If `r` is the entropy reduction of some blind system, then `r ≤ sSup(blindReductions)`. -/
+lemma blind_entropyReduction_le_sSup
+    {Ω' : Type} [MeasurableSpace Ω'] (sys' : ControlSystem Ω' S Act)
+    (hblind : sys'.IsBlind)
+    (hbd : BddAbove (blindReductions (S := S) (Act := Act))) :
+    entropyReduction sys' ≤ sSup (blindReductions (S := S) (Act := Act)) := by
+  apply le_csSup hbd
+  exact ⟨Ω', inferInstance, sys', hblind, rfl⟩
+
+/-- **Conditional entropy reduction is bounded by the blind supremum.** -/
 lemma condEntropy_reduction_le_blind_sup
     (sys : ControlSystem Ω S Act)
-    (hne : Set.Nonempty (blindReductions (S := S) (Act := Act)))
     (hbd : BddAbove (blindReductions (S := S) (Act := Act))) :
     H[sys.X | sys.A ; sys.μ] - H[sys.Y | sys.A ; sys.μ] ≤
       sSup (blindReductions (S := S) (Act := Act)) := by
-  sorry
+  -- Obtain the weighted-sum representation
+  obtain ⟨w, r, hw_nonneg, hw_sum, h_eq, h_blind⟩ := condEntropy_diff_eq_weighted_sum sys
+  -- Rewrite the LHS as the weighted sum
+  rw [h_eq]
+  -- Apply the convex combination bound
+  apply weighted_sum_le_sup w r _ hw_nonneg hw_sum
+  -- For each a with w a > 0, the corresponding r a is ≤ sSup
+  intro a ha
+  obtain ⟨Ω', mΩ', sys', hblind, hr⟩ := h_blind a ha
+  rw [← hr]
+  exact blind_entropyReduction_le_sSup sys' hblind hbd
 
 /-! #### Proof Step 3 — Assemble the main inequality
 
@@ -183,13 +251,12 @@ at most one additional bit of "optimization" (entropy reduction) beyond
 what is achievable without feedback. -/
 theorem touchette_lloyd
     (sys : ControlSystem Ω S Act)
-    (hne : Set.Nonempty (blindReductions (S := S) (Act := Act)))
     (hbd : BddAbove (blindReductions (S := S) (Act := Act))) :
     entropyReduction sys ≤ sSup (blindReductions (S := S) (Act := Act)) + policyMI sys := by
   -- Step 1: Decompose ΔH into conditional entropies and mutual informations
   rw [entropyReduction_decomp]
   -- Step 2: The conditional entropy reduction is bounded by the blind maximum
-  have hcond := condEntropy_reduction_le_blind_sup sys hne hbd
+  have hcond := condEntropy_reduction_le_blind_sup sys hbd
   -- Step 3: I[Y : A] ≥ 0 by Gibbs' inequality
   have hmi := mutualInfo_YA_nonneg sys
   -- Conclude
