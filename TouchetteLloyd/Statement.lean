@@ -190,7 +190,7 @@ lemma weighted_sum_le_sup {ι : Type*} [Fintype ι]
         intro i _
         by_cases hi : w i > 0
         · exact mul_le_mul_of_nonneg_left (hr_bound i hi) (le_of_lt hi)
-        · push_neg at hi
+        · push Not at hi
           have : w i = 0 := le_antisymm hi (hw_nonneg i)
           simp [this]
     _ = C := by rw [← Finset.sum_mul, hw_sum, one_mul]
@@ -267,7 +267,24 @@ theorem touchette_lloyd
 /-- A blind system has zero policy mutual information. -/
 theorem blind_policyMI_eq_zero (sys : ControlSystem Ω S Act) (hblind : sys.IsBlind) :
     policyMI sys = 0 := by
-  sorry
+  -- policyMI = I[X : A] = H[X] + H[A] - H[(X,A)]
+  -- Independence ⟹ joint law = product of marginals ⟹ H[(X,A)] = H[X] + H[A]
+  simp only [policyMI, mutualInfo]
+  suffices h : H[fun ω => (sys.X ω, sys.A ω) ; sys.μ] = H[sys.X ; sys.μ] + H[sys.A ; sys.μ] by
+    linarith
+  -- From independence: μ.map (X,A) = (μ.map X).prod (μ.map A)
+  have h_prod : sys.μ.map (fun ω => (sys.X ω, sys.A ω)) =
+      (sys.μ.map sys.X).prod (sys.μ.map sys.A) :=
+    (ProbabilityTheory.indepFun_iff_map_prod_eq_prod_map_map
+      sys.hX.aemeasurable sys.hA.aemeasurable).mp hblind
+  -- Rewrite entropy using the product decomposition
+  simp only [entropy, h_prod]
+  -- Entropy of product measure = sum of entropies
+  have : IsProbabilityMeasure (sys.μ.map sys.X) :=
+    Measure.isProbabilityMeasure_map sys.hX.aemeasurable
+  have : IsProbabilityMeasure (sys.μ.map sys.A) :=
+    Measure.isProbabilityMeasure_map sys.hA.aemeasurable
+  exact measureEntropy_prod (sys.μ.map sys.X) (sys.μ.map sys.A)
 
 end TouchetteLloyd
 

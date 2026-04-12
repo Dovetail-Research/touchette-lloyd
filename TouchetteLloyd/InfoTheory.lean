@@ -2,6 +2,7 @@ import Mathlib.Analysis.SpecialFunctions.Log.NegMulLog
 import Mathlib.MeasureTheory.Measure.MeasureSpace
 import Mathlib.MeasureTheory.Measure.Dirac
 import Mathlib.MeasureTheory.Measure.Real
+import Mathlib.MeasureTheory.Measure.Prod
 
 /-!
 # Shannon Information Theory (Discrete Finite Case)
@@ -68,6 +69,46 @@ lemma measureEntropy_nonneg {S : Type*} [MeasurableSpace S] [MeasurableSingleton
         apply ENNReal.toReal_mono (measure_ne_top μ _)
         exact measure_mono (Set.subset_univ _)
     _ = 1 := by simp [measure_univ]
+
+/-- Sum of singleton real measures equals 1 for a probability measure. -/
+lemma sum_measureReal_singleton {S : Type*} [MeasurableSpace S] [MeasurableSingletonClass S]
+    [Fintype S] (μ : Measure S) [IsProbabilityMeasure μ] :
+    ∑ s : S, μ.real {s} = 1 := by
+  have h_ennreal : ∑ s : S, μ {s} = 1 := by
+    rw [← measure_biUnion_finset
+      (fun x _ y _ hxy => Set.disjoint_singleton.mpr hxy)
+      (fun s _ => measurableSet_singleton s)]
+    have : (⋃ s ∈ Finset.univ, ({s} : Set S)) = Set.univ := by ext; simp
+    rw [this, measure_univ]
+  rw [show (1 : ℝ) = (1 : ℝ≥0∞).toReal from by simp, ← h_ennreal,
+    ENNReal.toReal_sum (fun s _ => measure_ne_top μ {s})]
+  simp [Measure.real]
+
+/-- Entropy of a product measure equals the sum of the entropies.
+
+    `Hm[μ × ν] = Hm[μ] + Hm[ν]`
+
+    This follows from `negMulLog(p·q) = q·negMulLog(p) + p·negMulLog(q)` and
+    the fact that the marginal weights sum to 1. -/
+lemma measureEntropy_prod {S T : Type*}
+    [MeasurableSpace S] [MeasurableSingletonClass S] [Fintype S]
+    [MeasurableSpace T] [MeasurableSingletonClass T] [Fintype T]
+    (μ : Measure S) (ν : Measure T) [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] :
+    Hm[μ.prod ν] = Hm[μ] + Hm[ν] := by
+  simp only [measureEntropy, Fintype.sum_prod_type]
+  -- Rewrite {(s,t)} as {s} ×ˢ {t}, apply product measure formula, then negMulLog product rule
+  have hsing : ∀ (s : S) (t : T), ({(s, t)} : Set (S × T)) = {s} ×ˢ {t} :=
+    fun s t => by ext ⟨a, b⟩; simp
+  simp_rw [hsing, measureReal_prod_prod, negMulLog_mul, Finset.sum_add_distrib]
+  -- LHS = (∑ s, ∑ t, ν.real{t} · negMulLog(μ.real{s}))
+  --      + (∑ s, ∑ t, μ.real{s} · negMulLog(ν.real{t}))
+  -- First sum: factor out negMulLog(μ.real{s}), use ∑ ν.real = 1
+  -- Second sum: factor out negMulLog(ν.real{t}), use ∑ μ.real = 1
+  congr 1
+  · congr 1; ext s
+    rw [← Finset.sum_mul, sum_measureReal_singleton ν, one_mul]
+  · simp_rw [← Finset.mul_sum]
+    rw [← Finset.sum_mul, sum_measureReal_singleton μ, one_mul]
 
 /-! ### Random variable entropy -/
 
