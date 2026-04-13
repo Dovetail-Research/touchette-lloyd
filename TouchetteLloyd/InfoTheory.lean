@@ -60,6 +60,41 @@ def measureEntropy {S : Type*} [MeasurableSpace S] [MeasurableSingletonClass S]
 
 notation:100 "Hm[" μ "]" => measureEntropy μ
 
+/-- `negMulLog x ≤ 1` for `x ∈ [0, 1]`.
+
+    Proof: for `x > 0`, Mathlib gives `1 - x⁻¹ ≤ log x`, hence
+    `negMulLog x = x · (-log x) ≤ x · (x⁻¹ - 1) = 1 - x ≤ 1`. -/
+lemma negMulLog_le_one {x : ℝ} (hx0 : 0 ≤ x) (hx1 : x ≤ 1) : negMulLog x ≤ 1 := by
+  rcases eq_or_lt_of_le hx0 with rfl | hx_pos
+  · simp
+  · have hx_ne : x ≠ 0 := ne_of_gt hx_pos
+    have h_log : -log x ≤ x⁻¹ - 1 := by linarith [Real.one_sub_inv_le_log_of_pos hx_pos]
+    have hdef : negMulLog x = x * (-log x) := by unfold negMulLog; ring
+    rw [hdef]
+    calc x * (-log x) ≤ x * (x⁻¹ - 1) :=
+          mul_le_mul_of_nonneg_left h_log (le_of_lt hx_pos)
+      _ = 1 - x := by rw [mul_sub, mul_inv_cancel₀ hx_ne, mul_one]
+      _ ≤ 1 := by linarith
+
+/-- Entropy of a probability measure on a finite type is at most `|S|`.
+
+    This follows from `negMulLog x ≤ 1` for `x ∈ [0, 1]`. The tighter bound
+    `Hm[μ] ≤ log |S|` holds but this crude bound suffices for our purposes. -/
+lemma measureEntropy_le_card {S : Type*} [MeasurableSpace S] [MeasurableSingletonClass S]
+    [Fintype S] (μ : Measure S) [IsProbabilityMeasure μ] :
+    Hm[μ] ≤ Fintype.card S := by
+  simp only [measureEntropy]
+  have h_le : ∀ s : S, negMulLog (μ.real {s}) ≤ 1 := by
+    intro s
+    apply negMulLog_le_one measureReal_nonneg
+    calc μ.real {s} = (μ {s}).toReal := rfl
+      _ ≤ (μ Set.univ).toReal := ENNReal.toReal_mono (measure_ne_top μ _)
+          (measure_mono (Set.subset_univ _))
+      _ = 1 := by simp [measure_univ]
+  calc ∑ s : S, negMulLog (μ.real {s})
+      ≤ ∑ _s : S, (1 : ℝ) := Finset.sum_le_sum (fun s _ => h_le s)
+    _ = Fintype.card S := by simp [Finset.sum_const, Finset.card_univ]
+
 lemma measureEntropy_nonneg {S : Type*} [MeasurableSpace S] [MeasurableSingletonClass S]
     [Fintype S] (μ : Measure S) [IsProbabilityMeasure μ] :
     0 ≤ Hm[μ] := by

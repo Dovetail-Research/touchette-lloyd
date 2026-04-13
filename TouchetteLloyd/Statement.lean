@@ -20,8 +20,8 @@ reduction beyond what is achievable without any feedback.
 A **control system** is a probability space `Ω` equipped with three
 random variables:
 - `X : Ω → S`   — the initial environment state
-- `A : Ω → Act`  — the action chosen by the policy
-- `Y : Ω → S`   �� the final environment state
+- `A : Ω → Act` — the action chosen by the policy
+- `Y : Ω → S`   — the final environment state
 
 The dynamics are encoded in the joint distribution: the law of `(X, A, Y)`
 on `Ω` captures the prior `P(X)`, the policy `P(A|X)`, and the dynamics
@@ -114,6 +114,31 @@ def ControlSystem.IsBlind (sys : ControlSystem Ω S Act) : Prop :=
 def blindReductions : Set ℝ :=
   { r : ℝ | ∃ (Ω' : Type) (_ : MeasurableSpace Ω')
       (sys' : ControlSystem Ω' S Act), sys'.IsBlind ∧ entropyReduction sys' = r }
+
+/-! #### Entropy bounds -/
+
+omit [MeasurableSingletonClass Act] [Fintype Act] in
+/-- Entropy reduction is bounded above by the cardinality of the state space. -/
+lemma entropyReduction_le_card (sys : ControlSystem Ω S Act) :
+    entropyReduction sys ≤ Fintype.card S := by
+  haveI : IsProbabilityMeasure (sys.μ.map sys.X) :=
+    Measure.isProbabilityMeasure_map sys.hX.aemeasurable
+  haveI : IsProbabilityMeasure (sys.μ.map sys.Y) :=
+    Measure.isProbabilityMeasure_map sys.hY.aemeasurable
+  simp only [entropyReduction, entropy]
+  linarith [measureEntropy_le_card (sys.μ.map sys.X),
+            measureEntropy_nonneg (sys.μ.map sys.Y)]
+
+omit [MeasurableSingletonClass Act] [Fintype Act] in
+/-- The set of blind entropy reductions is bounded above.
+
+    Since `S` is finite, entropy is bounded by `|S|`, so every entropy
+    reduction `H[X] - H[Y] ≤ H[X] ≤ |S|`. -/
+lemma blindReductions_bddAbove : BddAbove (blindReductions (S := S) (Act := Act)) := by
+  use Fintype.card S
+  intro r ⟨Ω', mΩ', sys', _, hr⟩
+  rw [← hr]
+  exact entropyReduction_le_card sys'
 
 /-! #### Information-theoretic foundations -/
 
@@ -308,21 +333,20 @@ lemma weighted_sum_le_sup {ι : Type*} [Fintype ι]
           simp [this]
     _ = C := by rw [← Finset.sum_mul, hw_sum, one_mul]
 
+omit [MeasurableSingletonClass Act] [Fintype Act] in
 /-- **Sub-lemma 2c: Blind systems contribute to blindReductions.**
 
     If `r` is the entropy reduction of some blind system, then `r ≤ sSup(blindReductions)`. -/
 lemma blind_entropyReduction_le_sSup
     {Ω' : Type} [MeasurableSpace Ω'] (sys' : ControlSystem Ω' S Act)
-    (hblind : sys'.IsBlind)
-    (hbd : BddAbove (blindReductions (S := S) (Act := Act))) :
+    (hblind : sys'.IsBlind) :
     entropyReduction sys' ≤ sSup (blindReductions (S := S) (Act := Act)) := by
-  apply le_csSup hbd
+  apply le_csSup blindReductions_bddAbove
   exact ⟨Ω', inferInstance, sys', hblind, rfl⟩
 
 /-- **Conditional entropy reduction is bounded by the blind supremum.** -/
 lemma condEntropy_reduction_le_blind_sup
-    (sys : ControlSystem Ω S Act)
-    (hbd : BddAbove (blindReductions (S := S) (Act := Act))) :
+    (sys : ControlSystem Ω S Act) :
     H[sys.X | sys.A ; sys.μ] - H[sys.Y | sys.A ; sys.μ] ≤
       sSup (blindReductions (S := S) (Act := Act)) := by
   -- Obtain the weighted-sum representation
@@ -335,7 +359,7 @@ lemma condEntropy_reduction_le_blind_sup
   intro a ha
   obtain ⟨Ω', mΩ', sys', hblind, hr⟩ := h_blind a ha
   rw [← hr]
-  exact blind_entropyReduction_le_sSup sys' hblind hbd
+  exact blind_entropyReduction_le_sSup sys' hblind
 
 /-! #### Proof Step 3 — Assemble the main inequality
 
@@ -363,13 +387,12 @@ Each bit of "modeling" (mutual information with the environment) buys
 at most one additional bit of "optimization" (entropy reduction) beyond
 what is achievable without feedback. -/
 theorem touchette_lloyd
-    (sys : ControlSystem Ω S Act)
-    (hbd : BddAbove (blindReductions (S := S) (Act := Act))) :
+    (sys : ControlSystem Ω S Act) :
     entropyReduction sys ≤ sSup (blindReductions (S := S) (Act := Act)) + policyMI sys := by
   -- Step 1: Decompose ΔH into conditional entropies and mutual informations
   rw [entropyReduction_decomp]
   -- Step 2: The conditional entropy reduction is bounded by the blind maximum
-  have hcond := condEntropy_reduction_le_blind_sup sys hbd
+  have hcond := condEntropy_reduction_le_blind_sup sys
   -- Step 3: I[Y : A] ≥ 0 by Gibbs' inequality
   have hmi := mutualInfo_YA_nonneg sys
   -- Conclude
