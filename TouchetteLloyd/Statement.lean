@@ -140,18 +140,6 @@ lemma blindReductions_bddAbove : BddAbove (blindReductions (S := S) (Act := Act)
   rw [← hr]
   exact entropyReduction_le_card sys'
 
-/-! #### Information-theoretic foundations -/
-
-/-- **Gibbs' inequality**: mutual information is nonneg. -/
-lemma policyMI_nonneg (sys : ControlSystem Ω S Act) :
-    0 ≤ policyMI sys :=
-  mutualInfo_nonneg sys.X sys.A sys.μ sys.hX sys.hA
-
-/-- **I(Y ; A) ≥ 0**: mutual information between outcome and action. -/
-lemma mutualInfo_YA_nonneg (sys : ControlSystem Ω S Act) :
-    0 ≤ I[sys.Y : sys.A ; sys.μ] :=
-  mutualInfo_nonneg sys.Y sys.A sys.μ sys.hY sys.hA
-
 /-! #### Proof Step 1 — Entropy reduction decomposes via conditional entropies
 
     `H[X] - H[Y] = [H[X|A] - H[Y|A]] + [I[X:A] - I[Y:A]]`
@@ -394,7 +382,7 @@ theorem touchette_lloyd
   -- Step 2: The conditional entropy reduction is bounded by the blind maximum
   have hcond := condEntropy_reduction_le_blind_sup sys
   -- Step 3: I[Y : A] ≥ 0 by Gibbs' inequality
-  have hmi := mutualInfo_YA_nonneg sys
+  have hmi := mutualInfo_nonneg sys.Y sys.A sys.μ sys.hY sys.hA
   -- Conclude
   linarith
 
