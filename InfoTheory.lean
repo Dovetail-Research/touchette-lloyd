@@ -1,0 +1,29 @@
+-- Root module for the InfoTheory library. Regenerate with:
+--   find InfoTheory -name '*.lean' | sort | sed 's/\.lean$//; s|/|.|g; s/^/import /'
+import InfoTheory.Entropy
+import InfoTheory.PFR.ForMathlib.ConditionalIndependence
+import InfoTheory.PFR.ForMathlib.Entropy.Basic
+import InfoTheory.PFR.ForMathlib.Entropy.Kernel.Basic
+import InfoTheory.PFR.ForMathlib.Entropy.Kernel.MutualInfo
+import InfoTheory.PFR.ForMathlib.Entropy.Measure
+import InfoTheory.PFR.ForMathlib.FiniteRange.ConditionalProbability
+import InfoTheory.PFR.ForMathlib.FiniteRange.Defs
+import InfoTheory.PFR.ForMathlib.Pair
+import InfoTheory.PFR.ForMathlib.Uniform
+import InfoTheory.PFR.Mathlib.Data.Set.Basic
+import InfoTheory.PFR.Mathlib.Data.Set.Card
+import InfoTheory.PFR.Mathlib.Data.Set.Insert
+import InfoTheory.PFR.Mathlib.MeasureTheory.Constructions.Pi
+import InfoTheory.PFR.Mathlib.MeasureTheory.Integral.Lebesgue.Basic
+import InfoTheory.PFR.Mathlib.MeasureTheory.Integral.Lebesgue.Countable
+import InfoTheory.PFR.Mathlib.MeasureTheory.Measure.Dirac
+import InfoTheory.PFR.Mathlib.MeasureTheory.Measure.Prod
+import InfoTheory.PFR.Mathlib.MeasureTheory.Measure.Real
+import InfoTheory.PFR.Mathlib.Probability.ConditionalProbability
+import InfoTheory.PFR.Mathlib.Probability.IdentDistrib
+import InfoTheory.PFR.Mathlib.Probability.Independence.Basic
+import InfoTheory.PFR.Mathlib.Probability.Independence.Kernel.IndepFun
+import InfoTheory.PFR.Mathlib.Probability.Kernel.Composition.Comp
+import InfoTheory.PFR.Mathlib.Probability.Kernel.Disintegration
+import InfoTheory.PFR.Mathlib.Probability.UniformOn
+import InfoTheory.Shannon.Basic
