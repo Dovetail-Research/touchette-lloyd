@@ -1,4 +1,4 @@
--- VENDORED from teorth/pfr @ 0811856fd51caca800c7786d85b79541e8704f54
+-- VENDORED from teorth/pfr @ a177b2e4abe4b31c8024b9afebe646bf6bb8f91b
 -- Upstream path: PFR/ForMathlib/Entropy/Kernel/MutualInfo.lean
 -- Do not edit by hand; see VENDORED.md. Re-sync with scripts/vendor.sh.
 module
@@ -284,7 +284,7 @@ lemma entropy_submodular_compProd {ξ : Kernel T S} [IsZeroOrMarkovKernel ξ]
   rcases eq_zero_or_isMarkovKernel η with rfl | hκ'
   · simp
   have : Nonempty V := nonempty_of_isMarkovKernel η
-  have h_meas := (MeasurableEquiv.prodAssoc.symm : T × S × U ≃ᵐ (T × S) × U).symm.measurable
+  have h_meas := (MeasurableEquiv.prodAssoc : (T × S) × U ≃ᵐ T × S × U).measurable
   have : FiniteSupport (μ ⊗ₘ ξ) := finiteSupport_of_compProd hξ
   have : FiniteSupport (μ ⊗ₘ (ξ ⊗ₖ κ)) := finiteSupport_of_compProd (hξ.compProd hκ)
   have h := entropy_condKernel_le_entropy_snd

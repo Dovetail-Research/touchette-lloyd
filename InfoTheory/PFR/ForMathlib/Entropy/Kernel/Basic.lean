@@ -1,4 +1,4 @@
--- VENDORED from teorth/pfr @ 0811856fd51caca800c7786d85b79541e8704f54
+-- VENDORED from teorth/pfr @ a177b2e4abe4b31c8024b9afebe646bf6bb8f91b
 -- Upstream path: PFR/ForMathlib/Entropy/Kernel/Basic.lean
 -- Do not edit by hand; see VENDORED.md. Re-sync with scripts/vendor.sh.
 module
@@ -195,10 +195,7 @@ lemma entropy_comap_equiv [MeasurableSingletonClass T]
     (κ : Kernel T S) {μ : Measure T} (f : T' ≃ᵐ T)
     [IsFiniteMeasure μ] [FiniteSupport μ] :
     Hk[comap κ f f.measurable, μ.comap f] = Hk[κ, μ] := by
-  rw [entropy_comap]
-  · exact f.measurableEmbedding
-  · rw [← MeasurableEquiv.coe_toEquiv, Equiv.range_eq_univ]
-  · exact FiniteSupport.comap_equiv f
+  simp [entropy_comap, f.measurableEmbedding, FiniteSupport.comap_equiv f]
 
 lemma entropy_comap_swap [MeasurableSingletonClass T]
     {T' : Type*} [MeasurableSpace T'] [MeasurableSingletonClass T']

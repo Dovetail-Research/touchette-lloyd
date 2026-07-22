@@ -1,4 +1,4 @@
--- VENDORED from teorth/pfr @ 0811856fd51caca800c7786d85b79541e8704f54
+-- VENDORED from teorth/pfr @ a177b2e4abe4b31c8024b9afebe646bf6bb8f91b
 -- Upstream path: PFR/Mathlib/Probability/IdentDistrib.lean
 -- Do not edit by hand; see VENDORED.md. Re-sync with scripts/vendor.sh.
 module
