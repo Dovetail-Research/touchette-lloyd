@@ -26,3 +26,4 @@ import InfoTheory.PFR.Mathlib.Probability.Independence.Kernel.IndepFun
 import InfoTheory.PFR.Mathlib.Probability.Kernel.Composition.Comp
 import InfoTheory.PFR.Mathlib.Probability.Kernel.Disintegration
 import InfoTheory.PFR.Mathlib.Probability.UniformOn
+import InfoTheory.TouchetteLloyd.Basic
